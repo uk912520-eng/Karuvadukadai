@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>🐟 கருவாடு கடை - Customer</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',Arial,sans-serif;background:#e9f1f7;padding:20px}
+        .header{text-align:center;background:linear-gradient(135deg,#ff6b35,#f7931e);color:#fff;padding:20px;border-radius:15px;margin-bottom:25px;font-weight:700;font-size:1.8rem;}
+        .container{max-width:900px;margin:0 auto;background:#fff;padding:25px;border-radius:25px;box-shadow:0 12px 35px rgba(0,0,0,0.1)}
+        .search-box{padding:15px;border:2px solid #ddd;border-radius:30px;width:100%;font-size:1.1rem;margin-bottom:30px;box-sizing:border-box}
+        .products-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:30px}
+        .product-card{background:#f8f9fa;padding:30px;border-radius:20px;text-align:center;box-shadow:0 10px 25px rgba(0,0,0,0.1);transition:transform 0.3s ease}
+        .product-card:hover{transform:translateY(-6px)}
+        .product-photo{width:120px;height:120px;border-radius:20px;margin:0 auto 20px;overflow:hidden;background:#fff;border:4px solid #ff6b35}
+        .product-photo img{width:100%;height:100%;object-fit:cover}
+        .product-name{font-size:1.6rem;font-weight:800;color:#333;margin-bottom:12px}
+        .product-price{font-size:2rem;color:#ff6b35;font-weight:bold;margin-bottom:15px}
+        .product-desc{color:#666;font-size:1.1rem;margin-bottom:25px;min-height:50px}
+        .order-btn{padding:15px 40px;background:#25d366;color:#fff;border:none;border-radius:50px;font-size:1.2rem;letter-spacing:1.5px;cursor:pointer;transition:background 0.3s ease}
+        .order-btn:hover{background:#128c7e}
+        .toggle-orders-btn{margin-top:30px;background:#ff6b35;color:#fff;border:none;padding:15px 50px;font-size:1.2rem;cursor:pointer;border-radius:30px;display:block;margin-left:auto;margin-right:auto;box-shadow:0 6px 15px rgba(255,107,53,0.4)}
+        .order-history{margin-top:25px;display:none;background:#f9f9f9;padding:20px;border-radius:15px;box-shadow:0 6px 20px rgba(0,0,0,0.05)}
+        .order-history table{width:100%;border-collapse:collapse}
+        .order-history th, .order-history td{padding:12px;border-bottom:1px solid #ddd;text-align:left}
+        .order-history th{background:#ff6b35;color:#fff}
+        .password-section{margin-bottom:15px;text-align:center}
+        .password-input{padding:12px;border-radius:12px;border:2px solid #ddd;width:250px;font-size:1.1rem}
+        .password-btn{padding:12px 30px;background:#25d366;color:#fff;border:none;border-radius:12px;cursor:pointer;font-size:1.1rem;margin-left:10px}
+        .password-btn:hover{background:#128c7e}
+        .notice{margin-top:15px;color:#ff6b35;font-weight:bold;text-align:center}
+    </style>
+</head>
+<body>
+    <div class="header">🐟 கருவாடு கடை</div>
+
+    <div class="container">
+        <input type="text" id="searchBox" class="search-box" placeholder="நெத்திலி, சூரை, வஞ்சரம் தேடுங்கள்..." />
+
+        <div id="productsGrid" class="products-grid"></div>
+
+        <button class="toggle-orders-btn" id="toggleOrderHistoryBtn">🗂️ என் ஆர்டர்கள் பார்க்க</button>
+
+        <div class="order-history" id="orderHistorySection">
+            <div class="password-section">
+                <input type="password" id="orderPassword" class="password-input" placeholder="கடவுச்சொல்லை உள்ளிடவும்"/>
+                <button id="orderPasswordBtn" class="password-btn">உள்ளிடு</button>
+            </div>
+            <div id="customerOrdersContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const ADMIN_WHATSAPP = '919791899825';
+
+        let products = JSON.parse(localStorage.getItem('karuvadu_products') || '[]');
+        let allCustomerOrders = JSON.parse(localStorage.getItem('karuvadu_customer_orders') || '[]');
+
+        // RENDER PRODUCTS
+        function renderProducts(filtered=products) {
+            const container = document.getElementById('productsGrid');
+            if(filtered.length === 0){
+                container.innerHTML = '<p style="color:#777;text-align:center;padding:40px;">Products இல்லை. Admin panel ல products சேர்க்கவும்.</p>';
+                return;
+            }
+            container.innerHTML = filtered.map(p => `
+                <div class="product-card">
+                    <div class="product-photo">${p.photo ? `<img src="${p.photo}" alt="${p.name}">` : '🐟'}</div>
+                    <div class="product-name">${p.name}</div>
+                    <div class="product-price">${p.price}</div>
+                    <div class="product-desc">${p.desc}</div>
+                    <button class="order-btn" onclick="placeOrder('${p.name}','${p.price}')">🛒 WhatsApp Order</button>
+                </div>
+            `).join('');
+        }
+
+        // Place order with prompts + save to customer orders, notify admin
+        function placeOrder(name, price) {
+            let customerName = prompt('உங்கள் பெயர்:');
+            if(!customerName) { alert('பெயர் தேவை'); return; }
+            let phone = prompt('உங்கள் போன் எண்:');
+            if(!phone) { alert('போன் தேவை'); return; }
+            let address = prompt('டெலிவரி முகவரி முழுமையாக (பதிவு செய்யப்படுகிறதா?):');
+            if(!address) { alert('முகவரி தேவை'); return; }
+
+            // Whatsapp message
+            let message = `🛒 கருவாடு கடை ஆர்டர் 🐟\n\n` +
+                `👤 பெயர்: ${customerName}\n` +
+                `📱 போன்: ${phone}\n` +
+                `📍 முகவரி: ${address}\n\n` +
+                `🐟 பொருள்: ${name}\n` +
+                `💰 விலை: ${price}\n\n` +
+                `நன்றி! 🙏`;
+
+            window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(message)}`, '_blank');
+
+            // Save customer order locally for history
+            let orderDetails = {
+                id: Date.now(),
+                customer: customerName,
+                phone: phone,
+                address: address,
+                items: name,
+                total: price,
+                date: new Date().toLocaleString('ta-IN')
+            };
+            allCustomerOrders.unshift(orderDetails);
+            localStorage.setItem('karuvadu_customer_orders', JSON.stringify(allCustomerOrders));
+
+            // Notify admin by incrementing new order count in localStorage
+            let notifKey = 'karuvadu_new_order_notification_count';
+            let count = parseInt(localStorage.getItem(notifKey) || '0', 10);
+            localStorage.setItem(notifKey, count + 1);
+
+            alert('உங்கள் ஆர்டர் பதிவாகியது! Adminக்கு அறிவிப்பு அனுப்பப்பட்டது.');
+        }
+
+        // SEARCH FUNCTIONALITY
+        document.getElementById('searchBox').addEventListener('input', function(){
+            const query = this.value.toLowerCase();
+            const filtered = products.filter(p => p.name.toLowerCase().includes(query) || p.desc.toLowerCase().includes(query));
+            renderProducts(filtered);
+        });
+
+        // ORDER HISTORY PROTECTION
+        const toggleOrdersBtn = document.getElementById('toggleOrderHistoryBtn');
+        const orderHistorySection = document.getElementById('orderHistorySection');
+        const orderPasswordInput = document.getElementById('orderPassword');
+        const orderPasswordBtn = document.getElementById('orderPasswordBtn');
+        const customerOrdersContent = document.getElementById('customerOrdersContent');
+
+        toggleOrdersBtn.onclick = () => {
+            if(orderHistorySection.style.display === 'block'){
+                orderHistorySection.style.display = 'none';
+                orderPasswordInput.value = '';
+                customerOrdersContent.innerHTML = '';
+            } else {
+                orderHistorySection.style.display = 'block';
+            }
+        };
+
+        orderPasswordBtn.onclick = () => {
+            const password = orderPasswordInput.value;
+            if(password !== 'customer123'){
+                alert('தவறான கடவுச்சொல்!');
+                return;
+            }
+            orderPasswordInput.value = '';
+            showCustomerOrders();
+        };
+
+        // SHOW Customer Orders Table
+        function showCustomerOrders(){
+            if(allCustomerOrders.length === 0){
+                customerOrdersContent.innerHTML = '<p style="text-align:center;color:#999;">எதிர்காலத்தில் உங்கள் ஆர்டர்கள் இங்கே காட்டப்படும்.</p>';
+                return;
+            }
+            let html = `<table>
+                <thead>
+                    <tr>
+                        <th>தேதி</th><th>பொருட்கள்</th><th>மொத்தம்</th><th>முகவரி</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${allCustomerOrders.map(o=>`
+                        <tr>
+                            <td>${o.date}</td>
+                            <td>${o.items}</td>
+                            <td>${o.total}</td>
+                            <td>${o.address}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>`;
+            customerOrdersContent.innerHTML = html;
+        }
+
+        // INITIAL RENDER
+        renderProducts();
+    </script>
+</body>
+</html>
